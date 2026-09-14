@@ -16,6 +16,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--train-fraction", type=float, default=0.8)
     parser.add_argument("--validation-fraction", type=float, default=0.1)
     parser.add_argument("--max-history", type=int, default=None)
+    parser.add_argument(
+        "--latest-session-fraction",
+        type=float,
+        default=None,
+        help="Optionally retain only the latest fraction of whole sessions before filtering (use 0.015625 for 1/64-style).",
+    )
     return parser
 
 
@@ -29,6 +35,7 @@ def main() -> None:
         train_fraction=args.train_fraction,
         validation_fraction=args.validation_fraction,
         max_history=args.max_history,
+        latest_session_fraction=args.latest_session_fraction,
     )
     print(json.dumps(metadata, indent=2, sort_keys=True))
 

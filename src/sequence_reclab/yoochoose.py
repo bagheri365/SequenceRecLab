@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -68,6 +69,24 @@ def group_sessions(events: Iterable[ClickEvent]) -> dict[str, tuple[ClickEvent, 
         for sid, items in grouped.items()
     }
 
+
+
+def select_latest_session_fraction(
+    sessions: dict[str, Sequence[ClickEvent]],
+    fraction: float,
+) -> dict[str, tuple[ClickEvent, ...]]:
+    """Select the latest fraction of whole sessions by end time.
+
+    Ties are broken by session ID and the retained count uses ceil with a
+    minimum of one non-empty session.
+    """
+    if not (0 < fraction <= 1):
+        raise ValueError("fraction must be in (0, 1]")
+    if not sessions:
+        return {}
+    ordered = sorted(sessions.items(), key=lambda kv: (kv[1][-1].timestamp, kv[0]))
+    keep = max(1, math.ceil(len(ordered) * fraction))
+    return {sid: tuple(seq) for sid, seq in ordered[-keep:]}
 
 def filter_sessions(
     sessions: dict[str, Sequence[ClickEvent]],
@@ -199,9 +218,14 @@ def preprocess_yoochoose(
     train_fraction: float = 0.8,
     validation_fraction: float = 0.1,
     max_history: int | None = None,
+    latest_session_fraction: float | None = None,
 ) -> dict[str, object]:
     """Run the deterministic Milestone-2 preprocessing pipeline."""
     sessions = group_sessions(read_clicks(input_path))
+    raw_session_count = len(sessions)
+    if latest_session_fraction is not None:
+        sessions = select_latest_session_fraction(sessions, latest_session_fraction)
+    selected_session_count = len(sessions)
     sessions = filter_sessions(
         sessions,
         min_session_length=min_session_length,
@@ -230,6 +254,8 @@ def preprocess_yoochoose(
 
     metadata: dict[str, object] = {
         "input": str(input_path),
+        "raw_session_count": raw_session_count,
+        "selected_session_count_before_filtering": selected_session_count,
         "session_count_after_filtering": len(sessions),
         "split_session_counts": {name: len(value) for name, value in splits.items()},
         "eligible_session_counts": eligible_sessions,
@@ -241,6 +267,12 @@ def preprocess_yoochoose(
             "train_fraction": train_fraction,
             "validation_fraction": validation_fraction,
             "max_history": max_history,
+            "latest_session_fraction": latest_session_fraction,
+            "subset_selection": (
+                "latest_sessions_by_end_timestamp_then_session_id"
+                if latest_session_fraction is not None
+                else "all_sessions"
+            ),
             "unknown_item_policy": "drop_entire_eval_session",
             "id_mapping_scope": "train_only",
         },

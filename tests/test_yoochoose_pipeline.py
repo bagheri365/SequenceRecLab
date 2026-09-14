@@ -11,6 +11,7 @@ from sequence_reclab.yoochoose import (
     group_sessions,
     parse_timestamp,
     preprocess_yoochoose,
+    select_latest_session_fraction,
     temporal_split,
 )
 
@@ -106,3 +107,25 @@ def test_end_to_end_preprocessing_is_deterministic(tmp_path):
     meta = json.loads((out1 / "metadata.json").read_text())
     assert meta["parameters"]["id_mapping_scope"] == "train_only"
     assert meta["parameters"]["unknown_item_policy"] == "drop_entire_eval_session"
+
+
+def test_preprocessing_latest_fraction_matches_explicit_subset_rule(tmp_path):
+    raw = tmp_path / "yoochoose-clicks.dat"
+    rows = []
+    for session in range(1, 9):
+        rows.append(f"{session},2014-04-{session:02d}T10:00:00.000Z,1,0\n")
+        rows.append(f"{session},2014-04-{session:02d}T10:01:00.000Z,2,0\n")
+    raw.write_text("".join(rows), encoding="utf-8")
+
+    metadata = preprocess_yoochoose(
+        raw,
+        tmp_path / "subset",
+        min_item_support=1,
+        train_fraction=0.5,
+        validation_fraction=0.25,
+        latest_session_fraction=0.25,
+    )
+    assert metadata["raw_session_count"] == 8
+    assert metadata["selected_session_count_before_filtering"] == 2
+    assert metadata["session_count_after_filtering"] == 2
+    assert metadata["parameters"]["latest_session_fraction"] == 0.25

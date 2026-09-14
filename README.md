@@ -13,9 +13,9 @@ SequenceRecLab separates four effects that are often bundled together as "sequen
 
 ## Current milestone
 
-**M7 — Reproducible experiment runner**
+**M8 — YOOCHOOSE profiling and dataset audit**
 
-The dataset contract lives in [`configs/datasets.toml`](configs/datasets.toml) and is explained in [`docs/dataset_semantics.md`](docs/dataset_semantics.md). Milestone 2 added deterministic YOOCHOOSE parsing, filtering, temporal splitting, train-only item mapping, and prefix-to-next-item example generation. Milestone 3 froze the repeat-item and ranking-evaluation contract. Milestone 4 added global popularity, first-order Markov transitions, and a deterministic reference BPR matrix-factorization implementation. Milestone 5 added `HistoryPool`, the order-invariant recent-history baseline. Milestone 6 added a matched Transformer pair: `PositionlessSASRec` and position-aware `SASRec`. Both use the same full-prefix self-attention and masked-mean readout; only learned positional information differs, keeping `PositionalGain` interpretable. Milestone 7 adds one experiment runner for seeds, history windows, fixed evaluation cohorts, model execution, metric aggregation, JSONL result records, and the gain decomposition.
+The dataset contract lives in [`configs/datasets.toml`](configs/datasets.toml) and is explained in [`docs/dataset_semantics.md`](docs/dataset_semantics.md). Milestone 2 added deterministic YOOCHOOSE parsing, filtering, temporal splitting, train-only item mapping, and prefix-to-next-item example generation. Milestone 3 froze the repeat-item and ranking-evaluation contract. Milestone 4 added global popularity, first-order Markov transitions, and a deterministic reference BPR matrix-factorization implementation. Milestone 5 added `HistoryPool`, the order-invariant recent-history baseline. Milestone 6 added a matched Transformer pair: `PositionlessSASRec` and position-aware `SASRec`. Both use the same full-prefix self-attention and masked-mean readout; only learned positional information differs, keeping `PositionalGain` interpretable. Milestone 7 adds one experiment runner for seeds, history windows, fixed evaluation cohorts, model execution, metric aggregation, JSONL result records, and the gain decomposition. Milestone 8 adds a real-data audit layer: an explicit latest-session 1/64-style subset rule, eligibility counts, repeat/timing/tied-timestamp diagnostics, exact split manifests, and invariant checks before any model result is trusted.
 
 The first implementation target is **YOOCHOOSE** because its primary records are real click events grouped into sessions, so event order has direct behavioral meaning. Retailrocket is the preferred replication dataset because it contains timestamped views, add-to-cart events, and transactions tied to persistent visitor IDs. MovieLens 1M is retained only as a controlled benchmark because rating time is not guaranteed to equal consumption time.
 
@@ -42,7 +42,8 @@ python scripts/preprocess_yoochoose.py \
   --input data/raw/yoochoose-clicks.dat \
   --output data/processed/yoochoose \
   --min-session-length 2 \
-  --min-item-support 5
+  --min-item-support 5 \
+  --latest-session-fraction 0.015625
 ```
 
 The output contains `train.jsonl`, `validation.jsonl`, `test.jsonl`, `item_mapping.json`, and `metadata.json`. Item IDs are fit on training data only; evaluation sessions containing unseen items are excluded rather than silently deleting unknown events and creating artificial adjacency.
@@ -74,3 +75,20 @@ python scripts/run_experiment.py \
   --processed-dir data/processed/yoochoose \
   --output-dir results/yoochoose_primary
 ```
+
+
+## Real-data profiling
+
+Milestone 8 profiles whole YOOCHOOSE sessions before prefix expansion. SequenceRecLab defines its 1/64-style subset as the latest `ceil(N / 64)` sessions by `(session_end_timestamp, session_id)`, followed by iterative support/session filtering and temporal splitting. This is an explicit project preprocessing rule, not a claim that every published `Yoochoose1/64` dataset is identical. See [`docs/yoochoose_profiling.md`](docs/yoochoose_profiling.md).
+
+Run the audit with:
+
+```bash
+python scripts/profile_yoochoose.py \
+  --input data/raw/yoochoose-clicks.dat \
+  --output data/processed/yoochoose_profile \
+  --latest-session-fraction 0.015625 \
+  --history-lengths 2 3 5 10
+```
+
+Inspect `profile.json` before running experiments; `session_manifest.jsonl` records the exact session membership and temporal split.
