@@ -1,0 +1,24 @@
+[matched_pair]
+objective = "full_catalog_cross_entropy"
+attention = "full_observed_prefix"
+readout = "masked_mean"
+item_embedding_tied_to_output = true
+history_truncation_location = "data_pipeline"
+
+[matched_pair.positionless_sasrec]
+use_positional_embeddings = false
+position_embedding_trainable = false
+
+[matched_pair.sasrec]
+use_positional_embeddings = true
+position_embedding_trainable = true
+
+[defaults]
+hidden_dim = 64
+num_heads = 2
+num_layers = 2
+dropout = 0.2
+learning_rate = 0.001
+weight_decay = 0.0
+epochs = 50
+seed = 20260914
