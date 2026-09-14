@@ -1,0 +1,52 @@
+# SequenceRecLab dataset contract.
+#
+# These entries capture semantic decisions that preprocessing and evaluation
+# code must obey. Dataset-specific code should fail loudly when it contradicts
+# this registry instead of silently changing the research task.
+
+[project]
+primary_task = "next_item_prediction"
+primary_unit = "ordered_interaction_history"
+minimum_history_for_example = 2
+
+[datasets.yoochoose]
+role = "primary"
+domain = "ecommerce_click_sessions"
+event_unit = "click"
+timestamp_semantics = "event_time"
+identity_scope = "session"
+sequence_semantics = "strong"
+repeat_items_meaningful = true
+seen_item_policy = "allow"
+primary_target_event = "click"
+recommended_history_lengths = [2, 3, 5, 10]
+source_url = "https://recsys.acm.org/recsys15/challenge/"
+notes = "Real click-event sequences grouped into sessions. Buy events exist for some sessions, but the primary SequenceRecLab task is next-click prediction."
+
+[datasets.retailrocket]
+role = "replication"
+domain = "ecommerce_events"
+event_unit = "event"
+timestamp_semantics = "event_time"
+identity_scope = "visitor"
+sequence_semantics = "strong"
+repeat_items_meaningful = true
+seen_item_policy = "allow"
+primary_target_event = "view"
+recommended_history_lengths = [5, 20, 50]
+source_url = "https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset"
+notes = "Timestamped view, addtocart, and transaction events tied to visitor IDs. Primary experiments begin with views; event-type extensions are secondary."
+
+[datasets.movielens_1m]
+role = "controlled_benchmark"
+domain = "movie_ratings"
+event_unit = "rating"
+timestamp_semantics = "rating_time"
+identity_scope = "user"
+sequence_semantics = "weak"
+repeat_items_meaningful = false
+seen_item_policy = "mask"
+primary_target_event = "rating"
+recommended_history_lengths = [5, 20, 50]
+source_url = "https://grouplens.org/datasets/movielens/1m/"
+notes = "Rating timestamps do not guarantee movie-consumption order. Use for reproducibility and controlled ablations, not as sole evidence for behavioral-order claims."
