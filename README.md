@@ -13,9 +13,9 @@ SequenceRecLab separates four effects that are often bundled together as "sequen
 
 ## Current milestone
 
-**M6 — Matched PositionlessSASRec + SASRec pair**
+**M7 — Reproducible experiment runner**
 
-The dataset contract lives in [`configs/datasets.toml`](configs/datasets.toml) and is explained in [`docs/dataset_semantics.md`](docs/dataset_semantics.md). Milestone 2 added deterministic YOOCHOOSE parsing, filtering, temporal splitting, train-only item mapping, and prefix-to-next-item example generation. Milestone 3 froze the repeat-item and ranking-evaluation contract. Milestone 4 added global popularity, first-order Markov transitions, and a deterministic reference BPR matrix-factorization implementation. Milestone 5 added `HistoryPool`, the order-invariant recent-history baseline. Milestone 6 adds a matched Transformer pair: `PositionlessSASRec` and position-aware `SASRec`. Both use the same full-prefix self-attention and masked-mean readout; only learned positional information differs, keeping `PositionalGain` interpretable.
+The dataset contract lives in [`configs/datasets.toml`](configs/datasets.toml) and is explained in [`docs/dataset_semantics.md`](docs/dataset_semantics.md). Milestone 2 added deterministic YOOCHOOSE parsing, filtering, temporal splitting, train-only item mapping, and prefix-to-next-item example generation. Milestone 3 froze the repeat-item and ranking-evaluation contract. Milestone 4 added global popularity, first-order Markov transitions, and a deterministic reference BPR matrix-factorization implementation. Milestone 5 added `HistoryPool`, the order-invariant recent-history baseline. Milestone 6 added a matched Transformer pair: `PositionlessSASRec` and position-aware `SASRec`. Both use the same full-prefix self-attention and masked-mean readout; only learned positional information differs, keeping `PositionalGain` interpretable. Milestone 7 adds one experiment runner for seeds, history windows, fixed evaluation cohorts, model execution, metric aggregation, JSONL result records, and the gain decomposition.
 
 The first implementation target is **YOOCHOOSE** because its primary records are real click events grouped into sessions, so event order has direct behavioral meaning. Retailrocket is the preferred replication dataset because it contains timestamped views, add-to-cart events, and transactions tied to persistent visitor IDs. MovieLens 1M is retained only as a controlled benchmark because rating time is not guaranteed to equal consumption time.
 
@@ -61,3 +61,16 @@ Milestones 4–5 add `PopularityModel`, `FirstOrderMarkov`, `BPRMatrixFactorizat
 ## Matched Transformer pair
 
 Milestone 6 adds `PositionlessSASRec` and `SASRec` in `sequence_reclab.transformers`. The pair shares item embeddings, Transformer dimensions, full-prefix attention, masked-mean readout, tied output embeddings, optimizer, objective, and candidates. A causal mask is intentionally excluded because the mask itself exposes order. See [`docs/transformer_pair.md`](docs/transformer_pair.md) and [`configs/transformers.toml`](configs/transformers.toml).
+
+
+## Reproducible experiment runner
+
+Milestone 7 centralizes the experimental grid in `sequence_reclab.experiments`. History-length comparisons use a fixed held-out population eligible for the largest declared history window, while training retains all valid prefixes and truncates their histories per run. Primary YOOCHOOSE runs exclude BPR because sessions are not persistent users. See [`docs/experiment_runner.md`](docs/experiment_runner.md) and [`configs/experiments.toml`](configs/experiments.toml).
+
+Run a primary grid after preprocessing with:
+
+```bash
+python scripts/run_experiment.py \
+  --processed-dir data/processed/yoochoose \
+  --output-dir results/yoochoose_primary
+```

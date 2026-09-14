@@ -1,0 +1,18 @@
+[reproducibility]
+population_mode = "fixed_max_history"
+result_format = "jsonl"
+seed_scope = "per_model_run"
+seeds = [20260914, 20260915, 20260916]
+
+[yoochoose_primary]
+models = ["popularity", "markov", "history_pool", "positionless_sasrec", "sasrec"]
+history_lengths = [2, 3, 5, 10]
+identity_scope = "session"
+bpr_enabled = false
+bpr_reason = "Held-out session IDs are not persistent user identities."
+
+[gains]
+recent_history_gain = "history_pool - bpr"
+context_gain = "positionless_sasrec - history_pool"
+positional_gain = "sasrec - positionless_sasrec"
+deep_seq_gain = "sasrec - markov"
