@@ -39,3 +39,35 @@ This distinction is part of the study design rather than an implementation incon
 ## Reproducibility
 
 BPR negative sampling and initialization use a local seeded random generator. Markov and popularity fitting are deterministic. Model scoring returns plain item-to-score mappings and uses the candidate/ranking logic in `sequence_reclab.evaluation`, so candidate policy and tie breaking remain centralized.
+
+## HistoryPool
+
+`HistoryPool` is the deliberately order-invariant recent-history baseline. It is fit from training-only `(history, target)` examples. For each history item `h`, the model estimates the empirical next-target distribution
+
+\[
+P(j \mid h) = \frac{C(h, j)}{\sum_k C(h, k)}.
+\]
+
+For a supplied history window \(H=(h_1,\ldots,h_m)\), candidate scores are the mean of those per-item association distributions:
+
+\[
+S(j \mid H) = \frac{1}{m}\sum_{r=1}^{m} P(j \mid h_r).
+\]
+
+This construction has three intentional properties:
+
+- **Permutation invariance:** reordering the same supplied history tokens cannot change the score.
+- **Multiplicity preservation:** repeated interactions remain repeated tokens, so composition includes frequency rather than collapsing the history to a set.
+- **No hidden recency operation:** `HistoryPool` does not choose the most recent suffix internally. The data/example pipeline selects the history window first; pooling then ignores order inside that fixed window.
+
+An extremely small training-target-popularity term may break zero-score ties without overriding observed history-target associations. With an empty evaluation history the model falls back to training-target popularity, though normal next-item examples in SequenceRecLab have non-empty histories.
+
+### Role in the decomposition
+
+`HistoryPool` is the control for **recent-history composition**. It is not intended to match Transformer capacity. Once the matched positionless Transformer is added, the main comparisons become:
+
+- `RecentHistoryGain = Metric(HistoryPool) - Metric(BPR)` on datasets with persistent user identities.
+- `ContextGain = Metric(PositionlessSASRec) - Metric(HistoryPool)`.
+- `PositionalGain = Metric(SASRec) - Metric(PositionlessSASRec)`.
+
+For YOOCHOOSE, where BPR cannot represent long-term persistent-user personalization, `HistoryPool` is still directly evaluable and supplies the crucial order-invariant comparator for the later Transformer experiments.

@@ -92,6 +92,101 @@ class FirstOrderMarkov:
         return self._popularity[item] / self._total_items
 
 
+class HistoryPool:
+    """Order-invariant recent-history composition baseline.
+
+    The model learns training-only item-to-next-target association tables. At
+    scoring time, each history token contributes its conditional target
+    distribution and the contributions are mean-pooled. Reordering an already
+    selected history window therefore leaves scores unchanged; repeated items
+    retain multiplicity and can contribute more than once.
+
+    History-window selection belongs to the data/example pipeline. This class
+    must not select a suffix itself because doing so would mix recency selection
+    with the order-invariant pooling operation under study.
+    """
+
+    def __init__(self, *, fallback_weight: float = 1e-12) -> None:
+        if fallback_weight < 0:
+            raise ValueError("fallback_weight must be >= 0")
+        self.fallback_weight = fallback_weight
+        self._context_targets: dict[int, Counter[int]] = {}
+        self._context_totals: Counter[int] = Counter()
+        self._target_counts: Counter[int] = Counter()
+        self._example_count = 0
+
+    def fit(self, examples: Iterable[object]) -> "HistoryPool":
+        """Fit from ``(history, target)`` pairs or objects with those attributes."""
+        context_targets: dict[int, Counter[int]] = defaultdict(Counter)
+        context_totals: Counter[int] = Counter()
+        target_counts: Counter[int] = Counter()
+        example_count = 0
+
+        for example in examples:
+            history, target = _history_target(example)
+            if not history:
+                raise ValueError("HistoryPool training examples require non-empty history")
+            target_counts[target] += 1
+            example_count += 1
+            for source in history:
+                context_targets[source][target] += 1
+                context_totals[source] += 1
+
+        if example_count == 0:
+            raise ValueError("at least one training example is required")
+
+        self._context_targets = dict(context_targets)
+        self._context_totals = context_totals
+        self._target_counts = target_counts
+        self._example_count = example_count
+        return self
+
+    def score(self, history: Sequence[int], candidates: Iterable[int]) -> dict[int, float]:
+        candidate_list = tuple(candidates)
+        if not history:
+            return {item: self._target_popularity(item) for item in candidate_list}
+
+        denominator = float(len(history))
+        scores = {item: 0.0 for item in candidate_list}
+        for source in history:
+            total = self._context_totals[source]
+            if total == 0:
+                continue
+            row = self._context_targets.get(source, Counter())
+            for item in candidate_list:
+                scores[item] += (row[item] / total) / denominator
+
+        if self.fallback_weight:
+            for item in candidate_list:
+                scores[item] += self.fallback_weight * self._target_popularity(item)
+        return scores
+
+    def association_count(self, source: int, target: int) -> int:
+        return self._context_targets.get(source, Counter())[target]
+
+    def _target_popularity(self, item: int) -> float:
+        if self._example_count == 0:
+            return 0.0
+        return self._target_counts[item] / self._example_count
+
+
+def _history_target(example: object) -> tuple[tuple[int, ...], int]:
+    if isinstance(example, tuple) and len(example) == 2:
+        history, target = example
+    else:
+        try:
+            history = getattr(example, "history")
+            target = getattr(example, "target")
+        except AttributeError as exc:
+            raise TypeError("expected (history, target) or an object with history and target") from exc
+    try:
+        normalized_history = tuple(int(item) for item in history)
+        normalized_target = int(target)
+    except (TypeError, ValueError) as exc:
+        raise TypeError("history items and target must be integer-like") from exc
+    return normalized_history, normalized_target
+
+
 @dataclass(frozen=True, slots=True)
 class BPRInteraction:
     user: int

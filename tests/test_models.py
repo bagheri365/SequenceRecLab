@@ -68,3 +68,57 @@ def test_bpr_rejects_unknown_candidate_item():
 def test_bpr_requires_negative_sampling_support():
     with pytest.raises(ValueError, match="unobserved training item"):
         BPRMatrixFactorization(factors=2, epochs=1).fit([(1, 1), (1, 2), (2, 1), (2, 2)])
+
+
+def _history_pool_data():
+    return [
+        ((1, 2), 3),
+        ((1, 1), 3),
+        ((2, 4), 5),
+        ((4,), 5),
+    ]
+
+
+def test_history_pool_is_permutation_invariant_for_fixed_history_content():
+    from sequence_reclab.models import HistoryPool
+
+    model = HistoryPool(fallback_weight=0.0).fit(_history_pool_data())
+    candidates = [1, 2, 3, 4, 5]
+    assert model.score([1, 2, 1], candidates) == model.score([2, 1, 1], candidates)
+
+
+def test_history_pool_preserves_repeat_item_multiplicity():
+    from sequence_reclab.models import HistoryPool
+
+    model = HistoryPool(fallback_weight=0.0).fit([((1,), 3), ((2,), 4)])
+    first_heavy = model.score([1, 1, 2], [3, 4])
+    second_heavy = model.score([1, 2, 2], [3, 4])
+    assert first_heavy[3] > second_heavy[3]
+    assert first_heavy[4] < second_heavy[4]
+
+
+def test_history_pool_uses_composition_not_only_final_history_item():
+    from sequence_reclab.models import HistoryPool
+
+    model = HistoryPool(fallback_weight=0.0).fit([((1,), 3), ((2,), 4)])
+    scores = model.score([1, 2], [3, 4])
+    assert scores[3] == pytest.approx(0.5)
+    assert scores[4] == pytest.approx(0.5)
+
+
+def test_history_pool_scores_full_catalog_candidates_from_evaluation_contract():
+    from sequence_reclab.models import HistoryPool
+
+    model = HistoryPool(fallback_weight=0.0).fit(_history_pool_data())
+    candidates = build_candidates(item_count=5, target=3, history=[1, 2])
+    scores = model.score([1, 2], candidates)
+    ranking = rank_items(scores, candidates)
+    assert set(scores) == set(candidates)
+    assert ranking[0] == 3
+
+
+def test_history_pool_rejects_empty_training_history():
+    from sequence_reclab.models import HistoryPool
+
+    with pytest.raises(ValueError, match="non-empty history"):
+        HistoryPool().fit([((), 3)])
