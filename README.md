@@ -13,9 +13,9 @@ SequenceRecLab separates four effects that are often bundled together as "sequen
 
 ## Current milestone
 
-**M2 — Reproducible YOOCHOOSE sequence pipeline**
+**M3 — Repeat-item policy and evaluation protocol**
 
-The dataset contract lives in [`configs/datasets.toml`](configs/datasets.toml) and is explained in [`docs/dataset_semantics.md`](docs/dataset_semantics.md). Milestone 2 adds deterministic YOOCHOOSE parsing, filtering, temporal splitting, train-only item mapping, and prefix-to-next-item example generation.
+The dataset contract lives in [`configs/datasets.toml`](configs/datasets.toml) and is explained in [`docs/dataset_semantics.md`](docs/dataset_semantics.md). Milestone 2 added deterministic YOOCHOOSE parsing, filtering, temporal splitting, train-only item mapping, and prefix-to-next-item example generation. Milestone 3 freezes the repeat-item and ranking-evaluation contract before any recommender model is implemented.
 
 The first implementation target is **YOOCHOOSE** because its primary records are real click events grouped into sessions, so event order has direct behavioral meaning. Retailrocket is the preferred replication dataset because it contains timestamped views, add-to-cart events, and transactions tied to persistent visitor IDs. MovieLens 1M is retained only as a controlled benchmark because rating time is not guaranteed to equal consumption time.
 
@@ -40,3 +40,8 @@ python scripts/preprocess_yoochoose.py \
 ```
 
 The output contains `train.jsonl`, `validation.jsonl`, `test.jsonl`, `item_mapping.json`, and `metadata.json`. Item IDs are fit on training data only; evaluation sessions containing unseen items are excluded rather than silently deleting unknown events and creating artificial adjacency.
+
+
+## Evaluation contract
+
+Primary YOOCHOOSE evaluation uses full-catalog ranking over the training vocabulary. Previously clicked items remain eligible because repeated clicks are valid session events. Metrics are Recall@10/20, NDCG@10/20, and MRR@10, with deterministic item-ID tie breaking. Sampled negatives are reserved for explicitly labeled sensitivity analysis. See [`docs/evaluation_protocol.md`](docs/evaluation_protocol.md) and [`configs/evaluation.toml`](configs/evaluation.toml).

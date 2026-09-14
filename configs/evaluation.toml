@@ -1,0 +1,21 @@
+[protocol]
+task = "next_item_prediction"
+primary_candidate_mode = "full_catalog"
+padding_index = 0
+cutoffs = [10, 20]
+metrics = ["recall", "ndcg", "mrr@10"]
+score_tie_break = "ascending_item_id"
+
+[yoochoose]
+allow_repeat_targets = true
+mask_seen_items = false
+candidate_vocabulary = "train_items_only"
+unknown_target_policy = "exclude_entire_eval_session"
+rationale = "Repeated clicks are valid within sessions; masking seen items can make a legitimate repeated next click impossible to rank."
+
+[sampled_sensitivity]
+enabled_for_primary_results = false
+negative_count = 100
+sampling_distribution = "uniform_over_eligible_train_items"
+seed = 20260914
+purpose = "secondary sensitivity analysis only; never substitute for the primary full-catalog result"
