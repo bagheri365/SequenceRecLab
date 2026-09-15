@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
@@ -27,6 +28,8 @@ class TransformerConfig:
     weight_decay: float = 0.0
     epochs: int = 10
     batch_size: int = 256
+    early_stopping_patience: int = 5
+    early_stopping_min_delta: float = 0.0
     seed: int = 20260914
 
     def __post_init__(self) -> None:
@@ -50,6 +53,10 @@ class TransformerConfig:
             raise ValueError("epochs must be >= 1")
         if self.batch_size < 1:
             raise ValueError("batch_size must be >= 1")
+        if self.early_stopping_patience < 1:
+            raise ValueError("early_stopping_patience must be >= 1")
+        if self.early_stopping_min_delta < 0:
+            raise ValueError("early_stopping_min_delta must be >= 0")
 
 
 class _MatchedTransformerEncoder(nn.Module):
@@ -125,19 +132,38 @@ class MatchedTransformerRecommender:
         self.network = _MatchedTransformerEncoder(config, use_positions=self.use_positions)
         self._fitted = False
 
-    def fit(self, examples: Iterable[object]) -> "MatchedTransformerRecommender":
+    def fit(
+        self,
+        examples: Iterable[object],
+        *,
+        validation_examples: Iterable[object] | None = None,
+    ) -> "MatchedTransformerRecommender":
         normalized = [_history_target(example) for example in examples]
         if not normalized:
             raise ValueError("at least one training example is required")
+        validation = (
+            None
+            if validation_examples is None
+            else [_history_target(example) for example in validation_examples]
+        )
+        if validation is not None and not validation:
+            raise ValueError("validation_examples must be non-empty when provided")
+
         torch.manual_seed(self.config.seed)
         optimizer = torch.optim.AdamW(
             (parameter for parameter in self.network.parameters() if parameter.requires_grad),
             lr=self.config.learning_rate,
             weight_decay=self.config.weight_decay,
         )
-        self.network.train()
         generator = torch.Generator().manual_seed(self.config.seed)
-        for _ in range(self.config.epochs):
+        best_state = None
+        best_metric = float("-inf")
+        best_epoch = 0
+        stale_epochs = 0
+        epochs_ran = 0
+
+        for epoch in range(1, self.config.epochs + 1):
+            self.network.train()
             order = torch.randperm(len(normalized), generator=generator).tolist()
             for start in range(0, len(order), self.config.batch_size):
                 batch = [normalized[index] for index in order[start : start + self.config.batch_size]]
@@ -147,9 +173,56 @@ class MatchedTransformerRecommender:
                 loss = nn.functional.cross_entropy(logits, targets)
                 loss.backward()
                 optimizer.step()
+            epochs_ran = epoch
+
+            if validation is None:
+                continue
+            metric = self._validation_ndcg_at_10(validation)
+            if metric > best_metric + self.config.early_stopping_min_delta:
+                best_metric = metric
+                best_epoch = epoch
+                best_state = deepcopy(self.network.state_dict())
+                stale_epochs = 0
+            else:
+                stale_epochs += 1
+                if stale_epochs >= self.config.early_stopping_patience:
+                    break
+
+        if validation is not None:
+            if best_state is None:  # defensive: epoch 1 always improves over -inf
+                raise AssertionError("validation checkpoint was not created")
+            self.network.load_state_dict(best_state)
+            self.best_epoch_ = best_epoch
+            self.best_validation_ndcg_at_10_ = best_metric
+        else:
+            self.best_epoch_ = epochs_ran
+            self.best_validation_ndcg_at_10_ = None
+        self.epochs_ran_ = epochs_ran
         self.network.eval()
         self._fitted = True
         return self
+
+    def _validation_ndcg_at_10(
+        self, examples: Sequence[tuple[tuple[int, ...], int]]
+    ) -> float:
+        """Compute full-catalog single-target NDCG@10 in bounded batches."""
+        self.network.eval()
+        total = 0.0
+        with torch.no_grad():
+            for start in range(0, len(examples), self.config.batch_size):
+                histories, targets = self._batch(examples[start : start + self.config.batch_size])
+                logits = self.network(histories)
+                target_scores = logits.gather(1, targets.unsqueeze(1)).squeeze(1)
+                item_ids = torch.arange(1, self.config.item_count + 1).unsqueeze(0)
+                target_item_ids = (targets + 1).unsqueeze(1)
+                outrank = (logits > target_scores.unsqueeze(1)) | (
+                    (logits == target_scores.unsqueeze(1)) & (item_ids < target_item_ids)
+                )
+                ranks = outrank.sum(dim=1) + 1
+                hits = ranks <= 10
+                if hits.any():
+                    total += float((1.0 / torch.log2(ranks[hits].to(torch.float32) + 1.0)).sum())
+        return total / len(examples)
 
     def score(self, history: Sequence[int], candidates: Iterable[int]) -> dict[int, float]:
         candidate_list = tuple(int(item) for item in candidates)

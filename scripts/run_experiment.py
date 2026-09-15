@@ -25,6 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seeds", type=int, nargs="+", default=[20260914, 20260915, 20260916])
     parser.add_argument("--models", nargs="+", default=list(PRIMARY_YOOCHOOSE_MODELS))
     parser.add_argument("--transformer-epochs", type=int, default=50)
+    parser.add_argument("--transformer-patience", type=int, default=5)
     return parser.parse_args()
 
 
@@ -33,6 +34,7 @@ def main() -> None:
     mapping = json.loads((args.processed_dir / "item_mapping.json").read_text(encoding="utf-8"))
     train = load_examples_jsonl(args.processed_dir / "train.jsonl")
     evaluation = load_examples_jsonl(args.processed_dir / f"{args.split}.jsonl")
+    validation = load_examples_jsonl(args.processed_dir / "validation.jsonl")
 
     rows = run_grid(
         dataset=args.dataset,
@@ -43,7 +45,11 @@ def main() -> None:
         seeds=args.seeds,
         models=args.models,
         split=args.split,
-        transformer=TransformerRunConfig(epochs=args.transformer_epochs),
+        transformer=TransformerRunConfig(
+            epochs=args.transformer_epochs,
+            early_stopping_patience=args.transformer_patience,
+        ),
+        transformer_validation_examples=validation,
     )
     gains = compute_gains(rows)
     write_results_jsonl(rows, args.output_dir / "results.jsonl")

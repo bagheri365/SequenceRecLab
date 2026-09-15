@@ -67,6 +67,8 @@ class TransformerRunConfig:
     weight_decay: float = 0.0
     epochs: int = 50
     batch_size: int = 256
+    early_stopping_patience: int = 5
+    early_stopping_min_delta: float = 0.0
 
 
 def load_examples_jsonl(path: str | Path) -> list[ExperimentExample]:
@@ -175,6 +177,7 @@ def run_grid(
     split: str = "test",
     policy: EvaluationPolicy = YOOCHOOSE_POLICY,
     transformer: TransformerRunConfig = TransformerRunConfig(),
+    transformer_validation_examples: Sequence[ExperimentExample] | None = None,
 ) -> list[ExperimentResult]:
     lengths = _validate_history_lengths(history_lengths)
     normalized_models = _validate_models(models)
@@ -183,12 +186,22 @@ def run_grid(
         raise ValueError("item_count must be >= 1")
 
     fixed_eval = fixed_evaluation_population(evaluation_examples, lengths)
+    fixed_transformer_validation = (
+        None
+        if transformer_validation_examples is None
+        else fixed_evaluation_population(transformer_validation_examples, lengths)
+    )
     session_sequences = reconstruct_sequences(train_examples)
     results: list[ExperimentResult] = []
 
     for history_length in lengths:
         train_window = truncate_examples(train_examples, history_length)
         eval_window = truncate_examples(fixed_eval, history_length)
+        transformer_validation_window = (
+            None
+            if fixed_transformer_validation is None
+            else truncate_examples(fixed_transformer_validation, history_length)
+        )
         for seed in normalized_seeds:
             _seed_python(seed)
             for model_name in normalized_models:
@@ -200,6 +213,7 @@ def run_grid(
                     history_length=history_length,
                     seed=seed,
                     transformer=transformer,
+                    transformer_validation_examples=transformer_validation_window,
                 )
                 metrics = _evaluate_model(
                     model_name,
@@ -280,6 +294,7 @@ def _fit_model(
     history_length: int,
     seed: int,
     transformer: TransformerRunConfig,
+    transformer_validation_examples: Sequence[ExperimentExample] | None,
 ):
     if model_name == "popularity":
         return PopularityModel().fit(session_sequences)
@@ -312,10 +327,14 @@ def _fit_model(
             weight_decay=transformer.weight_decay,
             epochs=transformer.epochs,
             batch_size=transformer.batch_size,
+            early_stopping_patience=transformer.early_stopping_patience,
+            early_stopping_min_delta=transformer.early_stopping_min_delta,
             seed=seed,
         )
         cls = PositionlessSASRec if model_name == "positionless_sasrec" else SASRec
-        return cls(config).fit(train_examples)
+        return cls(config).fit(
+            train_examples, validation_examples=transformer_validation_examples
+        )
     raise AssertionError(f"unhandled model {model_name}")
 
 

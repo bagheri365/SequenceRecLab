@@ -47,3 +47,7 @@ Missing model pairs produce no gain row rather than inventing a substitute basel
 ## Real-data history decision
 
 The M8 audit showed that history 10 selects a much smaller long-session population than history 5. SequenceRecLab therefore treats history 10 as a separately labeled sensitivity analysis rather than using it to define the primary fixed cohort. See `docs/real_data_protocol.md`.
+
+## Transformer checkpoint selection
+
+Transformer runs load `validation.jsonl` for checkpoint selection even when `--split test` is requested. The default rule is best full-catalog NDCG@10 with a maximum of 50 epochs and patience 5; the best validation checkpoint is restored before the requested split is evaluated. `--transformer-epochs` sets the maximum epoch budget and `--transformer-patience` sets patience. Validation-run metrics are tuning diagnostics; final claims should come from the untouched test split after the selection protocol is locked.

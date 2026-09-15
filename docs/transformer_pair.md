@@ -44,3 +44,11 @@ Training is performed in deterministic shuffled minibatches (default batch size 
 ## Reproducibility
 
 Model initialization and training use the configured PyTorch seed. Dropout is disabled during evaluation. Primary experiments should still run the study-level three seeds and report mean/std plus paired bootstrap uncertainty for key metric differences.
+
+## Validation checkpoint selection
+
+Formal Transformer runs use validation-based checkpoint selection rather than a manually chosen fixed epoch. The predeclared selection metric is full-catalog **NDCG@10**, computed with the same ascending-item-ID tie rule as the main evaluator. The default maximum budget is 50 epochs, patience is 5 epochs, and `min_delta = 0.0`. After training stops, the model restores the parameters from the epoch with the best validation NDCG@10.
+
+The validation examples use the same fixed-max-history population rule as reported evaluation: for a declared history grid such as `[2, 3, 5]`, one history-5-eligible validation cohort is selected first and then truncated to each requested history length. This prevents checkpoint selection from silently changing populations across history conditions.
+
+For a validation run, the validation split is both the checkpoint-selection split and the reported diagnostic split; those metrics are therefore model-selection diagnostics, not final held-out estimates. For a test run, checkpoint selection still uses validation, while `test.jsonl` is used only after the best validation checkpoint has been restored. The test split must not be used to choose epoch count, patience, or other hyperparameters.

@@ -116,3 +116,41 @@ def test_fit_never_materializes_more_than_configured_batch_size(monkeypatch):
     assert observed
     assert max(observed) <= 2
     assert len(observed) == 4
+
+
+def test_transformer_rejects_nonpositive_early_stopping_patience():
+    with pytest.raises(ValueError, match="early_stopping_patience"):
+        _config(early_stopping_patience=0)
+
+
+def test_early_stopping_restores_best_validation_checkpoint(monkeypatch):
+    model = SASRec(_config(epochs=10, early_stopping_patience=2))
+    observed_states = []
+    metrics = iter([0.10, 0.30, 0.20, 0.19])
+
+    def scripted_metric(examples):
+        observed_states.append(
+            {name: value.detach().clone() for name, value in model.network.state_dict().items()}
+        )
+        return next(metrics)
+
+    monkeypatch.setattr(model, "_validation_ndcg_at_10", scripted_metric)
+    model.fit(_examples(), validation_examples=_examples())
+
+    assert model.best_epoch_ == 2
+    assert model.epochs_ran_ == 4
+    assert model.best_validation_ndcg_at_10_ == pytest.approx(0.30)
+    restored = model.network.state_dict()
+    for name, value in observed_states[1].items():
+        assert torch.equal(restored[name], value), name
+
+
+def test_validation_ndcg_uses_deterministic_item_id_tie_break():
+    model = PositionlessSASRec(_config(item_count=3, epochs=1))
+    with torch.no_grad():
+        for parameter in model.network.parameters():
+            parameter.zero_()
+    # All items tie. Ascending item id gives target 1 rank 1 and target 3 rank 3.
+    value = model._validation_ndcg_at_10([((1,), 1), ((1,), 3)])
+    expected = (1.0 + 1.0 / torch.log2(torch.tensor(4.0)).item()) / 2.0
+    assert value == pytest.approx(expected)

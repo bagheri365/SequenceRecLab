@@ -180,3 +180,34 @@ def test_transformer_pair_runs_under_same_runner_when_torch_available():
     )
     assert [row.model for row in results] == ["positionless_sasrec", "sasrec"]
     assert all(row.example_count == 2 for row in results)
+
+
+def test_transformer_runner_accepts_fixed_validation_selection_population():
+    pytest.importorskip("torch")
+    validation = [
+        ExperimentExample("v1:1", (1, 2), 3),
+        ExperimentExample("v2:2", (2, 3), 4),
+        ExperimentExample("short:3", (1,), 2),
+    ]
+    results = run_grid(
+        dataset="toy",
+        train_examples=_examples(),
+        evaluation_examples=validation,
+        transformer_validation_examples=validation,
+        item_count=4,
+        history_lengths=[1, 2],
+        seeds=[5],
+        models=["positionless_sasrec"],
+        transformer=TransformerRunConfig(
+            hidden_dim=4,
+            num_heads=1,
+            num_layers=1,
+            dropout=0.0,
+            learning_rate=0.01,
+            epochs=2,
+            batch_size=2,
+            early_stopping_patience=1,
+        ),
+    )
+    assert len(results) == 2
+    assert {row.example_count for row in results} == {2}
