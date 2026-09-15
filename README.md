@@ -13,9 +13,9 @@ SequenceRecLab separates four effects that are often bundled together as "sequen
 
 ## Current milestone
 
-**M8 — YOOCHOOSE profiling and dataset audit**
+**M9 — real-data protocol lock**
 
-The dataset contract lives in [`configs/datasets.toml`](configs/datasets.toml) and is explained in [`docs/dataset_semantics.md`](docs/dataset_semantics.md). Milestone 2 added deterministic YOOCHOOSE parsing, filtering, temporal splitting, train-only item mapping, and prefix-to-next-item example generation. Milestone 3 froze the repeat-item and ranking-evaluation contract. Milestone 4 added global popularity, first-order Markov transitions, and a deterministic reference BPR matrix-factorization implementation. Milestone 5 added `HistoryPool`, the order-invariant recent-history baseline. Milestone 6 added a matched Transformer pair: `PositionlessSASRec` and position-aware `SASRec`. Both use the same full-prefix self-attention and masked-mean readout; only learned positional information differs, keeping `PositionalGain` interpretable. Milestone 7 adds one experiment runner for seeds, history windows, fixed evaluation cohorts, model execution, metric aggregation, JSONL result records, and the gain decomposition. Milestone 8 adds a real-data audit layer: an explicit latest-session 1/64-style subset rule, eligibility counts, repeat/timing/tied-timestamp diagnostics, exact split manifests, and invariant checks before any model result is trusted.
+The dataset contract lives in [`configs/datasets.toml`](configs/datasets.toml) and is explained in [`docs/dataset_semantics.md`](docs/dataset_semantics.md). Milestone 2 added deterministic YOOCHOOSE parsing, filtering, temporal splitting, train-only item mapping, and prefix-to-next-item example generation. Milestone 3 froze the repeat-item and ranking-evaluation contract. Milestone 4 added global popularity, first-order Markov transitions, and a deterministic reference BPR matrix-factorization implementation. Milestone 5 added `HistoryPool`, the order-invariant recent-history baseline. Milestone 6 added a matched Transformer pair: `PositionlessSASRec` and position-aware `SASRec`. Both use the same full-prefix self-attention and masked-mean readout; only learned positional information differs, keeping `PositionalGain` interpretable. Milestone 7 adds one experiment runner for seeds, history windows, fixed evaluation cohorts, model execution, metric aggregation, JSONL result records, and the gain decomposition. Milestone 8 adds a real-data audit layer: an explicit latest-session 1/64-style subset rule, eligibility counts, repeat/timing/tied-timestamp diagnostics, exact split manifests, and invariant checks before any model result is trusted. Milestone 9 locks the primary YOOCHOOSE history grid to `[2, 3, 5]` from the observed audit and reserves history 10 for a separately labeled long-session sensitivity analysis.
 
 The first implementation target is **YOOCHOOSE** because its primary records are real click events grouped into sessions, so event order has direct behavioral meaning. Retailrocket is the preferred replication dataset because it contains timestamped views, add-to-cart events, and transactions tied to persistent visitor IDs. MovieLens 1M is retained only as a controlled benchmark because rating time is not guaranteed to equal consumption time.
 
@@ -66,7 +66,7 @@ Milestone 6 adds `PositionlessSASRec` and `SASRec` in `sequence_reclab.transform
 
 ## Reproducible experiment runner
 
-Milestone 7 centralizes the experimental grid in `sequence_reclab.experiments`. History-length comparisons use a fixed held-out population eligible for the largest declared history window, while training retains all valid prefixes and truncates their histories per run. Primary YOOCHOOSE runs exclude BPR because sessions are not persistent users. See [`docs/experiment_runner.md`](docs/experiment_runner.md) and [`configs/experiments.toml`](configs/experiments.toml).
+Milestone 7 centralizes the experimental grid in `sequence_reclab.experiments`. Primary YOOCHOOSE history-length comparisons use `[2, 3, 5]` on one fixed held-out population eligible for history 5, while training retains all valid prefixes and truncates their histories per run. History 10 is a separate long-session sensitivity analysis. Primary YOOCHOOSE runs exclude BPR because sessions are not persistent users. See [`docs/experiment_runner.md`](docs/experiment_runner.md) and [`configs/experiments.toml`](configs/experiments.toml).
 
 Run a primary grid after preprocessing with:
 
@@ -92,3 +92,8 @@ python scripts/profile_yoochoose.py \
 ```
 
 Inspect `profile.json` before running experiments; `session_manifest.jsonl` records the exact session membership and temporal split.
+
+
+## Real-data protocol lock
+
+The first real 1/64-style audit retained 100,135 sessions and 432,099 clicks over 8,194 items after filtering. Test eligibility fell from 2,388 sessions at history 5 to 820 at history 10, so history 10 no longer defines the primary comparison population. The exact observed counts and catalog-cohort distinction are recorded in [`docs/real_data_protocol.md`](docs/real_data_protocol.md).

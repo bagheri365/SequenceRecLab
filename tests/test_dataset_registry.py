@@ -77,3 +77,9 @@ def test_repeat_policy_is_domain_specific() -> None:
     assert registry["yoochoose"]["seen_item_policy"] == "allow"
     assert registry["retailrocket"]["seen_item_policy"] == "allow"
     assert registry["movielens_1m"]["seen_item_policy"] == "mask"
+
+
+def test_yoochoose_real_data_history_protocol():
+    config = load_registry()["datasets"]["yoochoose"]
+    assert config["recommended_history_lengths"] == [2, 3, 5]
+    assert config["secondary_history_lengths"] == [10]

@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--dataset", default="yoochoose")
     parser.add_argument("--split", choices=("validation", "test"), default="test")
-    parser.add_argument("--history-lengths", type=int, nargs="+", default=[2, 3, 5, 10])
+    parser.add_argument("--history-lengths", type=int, nargs="+", default=[2, 3, 5])
     parser.add_argument("--seeds", type=int, nargs="+", default=[20260914, 20260915, 20260916])
     parser.add_argument("--models", nargs="+", default=list(PRIMARY_YOOCHOOSE_MODELS))
     parser.add_argument("--transformer-epochs", type=int, default=50)

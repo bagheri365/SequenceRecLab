@@ -4,7 +4,7 @@ Milestone 7 centralizes experiment execution so model comparisons cannot silentl
 
 ## Fixed evaluation population
 
-History-length comparisons use a fixed held-out cohort. If an experiment declares lengths `[2, 3, 5, 10]`, an evaluation example is eligible only when its original prefix contains at least 10 interactions. The same eligible examples are then truncated to the most recent 2, 3, 5, or 10 items. This prevents history length from being confounded with a changing evaluation population.
+History-length comparisons use a fixed held-out cohort. For the primary YOOCHOOSE experiment, the declared lengths are `[2, 3, 5]`, so an evaluation example is eligible only when its original prefix contains at least 5 interactions. The same eligible examples are then truncated to the most recent 2, 3, or 5 items. This prevents history length from being confounded with a changing evaluation population.
 
 Training is different: every valid training prefix remains available. Its history is truncated to the requested window. This avoids discarding most short-prefix supervision while keeping the held-out comparison population fixed.
 
@@ -43,3 +43,7 @@ DeepSeqGain       = SASRec - Markov
 ```
 
 Missing model pairs produce no gain row rather than inventing a substitute baseline.
+
+## Real-data history decision
+
+The M8 audit showed that history 10 selects a much smaller long-session population than history 5. SequenceRecLab therefore treats history 10 as a separately labeled sensitivity analysis rather than using it to define the primary fixed cohort. See `docs/real_data_protocol.md`.

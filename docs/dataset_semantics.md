@@ -38,7 +38,9 @@ The RecSys Challenge 2015 describes YOOCHOOSE as sequences of click events group
 
 **Repeat-item policy:** allow previously clicked items to remain valid targets. Repeated product inspection can be legitimate within a shopping session.
 
-**Recommended primary history lengths:** `2, 3, 5, 10`.
+**Recommended primary history lengths:** `2, 3, 5`.
+
+**Secondary long-history sensitivity:** `10`. This is reported on its own fixed long-session cohort rather than forcing the primary comparison onto history-10-eligible sessions.
 
 The previously proposed `5, 20, 50` grid is inappropriate as the main YOOCHOOSE experiment because session histories are typically much shorter than long-term user histories.
 

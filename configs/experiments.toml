@@ -6,10 +6,14 @@ seeds = [20260914, 20260915, 20260916]
 
 [yoochoose_primary]
 models = ["popularity", "markov", "history_pool", "positionless_sasrec", "sasrec"]
-history_lengths = [2, 3, 5, 10]
+history_lengths = [2, 3, 5]
 identity_scope = "session"
 bpr_enabled = false
 bpr_reason = "Held-out session IDs are not persistent user identities."
+
+[yoochoose_long_history_sensitivity]
+history_lengths = [10]
+population_note = "Separate long-session cohort; do not mix with the primary fixed-history cohort."
 
 [gains]
 recent_history_gain = "history_pool - bpr"

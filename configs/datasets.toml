@@ -19,7 +19,8 @@ sequence_semantics = "strong"
 repeat_items_meaningful = true
 seen_item_policy = "allow"
 primary_target_event = "click"
-recommended_history_lengths = [2, 3, 5, 10]
+recommended_history_lengths = [2, 3, 5]
+secondary_history_lengths = [10]
 source_url = "https://recsys.acm.org/recsys15/challenge/"
 notes = "Real click-event sequences grouped into sessions. Buy events exist for some sessions, but the primary SequenceRecLab task is next-click prediction."
 
