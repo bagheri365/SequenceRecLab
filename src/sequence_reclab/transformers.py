@@ -26,6 +26,7 @@ class TransformerConfig:
     learning_rate: float = 1e-3
     weight_decay: float = 0.0
     epochs: int = 10
+    batch_size: int = 256
     seed: int = 20260914
 
     def __post_init__(self) -> None:
@@ -47,6 +48,8 @@ class TransformerConfig:
             raise ValueError("weight_decay must be >= 0")
         if self.epochs < 1:
             raise ValueError("epochs must be >= 1")
+        if self.batch_size < 1:
+            raise ValueError("batch_size must be >= 1")
 
 
 class _MatchedTransformerEncoder(nn.Module):
@@ -126,8 +129,6 @@ class MatchedTransformerRecommender:
         normalized = [_history_target(example) for example in examples]
         if not normalized:
             raise ValueError("at least one training example is required")
-        histories, targets = self._batch(normalized)
-
         torch.manual_seed(self.config.seed)
         optimizer = torch.optim.AdamW(
             (parameter for parameter in self.network.parameters() if parameter.requires_grad),
@@ -135,12 +136,17 @@ class MatchedTransformerRecommender:
             weight_decay=self.config.weight_decay,
         )
         self.network.train()
+        generator = torch.Generator().manual_seed(self.config.seed)
         for _ in range(self.config.epochs):
-            optimizer.zero_grad(set_to_none=True)
-            logits = self.network(histories)
-            loss = nn.functional.cross_entropy(logits, targets)
-            loss.backward()
-            optimizer.step()
+            order = torch.randperm(len(normalized), generator=generator).tolist()
+            for start in range(0, len(order), self.config.batch_size):
+                batch = [normalized[index] for index in order[start : start + self.config.batch_size]]
+                histories, targets = self._batch(batch)
+                optimizer.zero_grad(set_to_none=True)
+                logits = self.network(histories)
+                loss = nn.functional.cross_entropy(logits, targets)
+                loss.backward()
+                optimizer.step()
         self.network.eval()
         self._fitted = True
         return self

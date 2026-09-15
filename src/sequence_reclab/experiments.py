@@ -66,6 +66,7 @@ class TransformerRunConfig:
     learning_rate: float = 1e-3
     weight_decay: float = 0.0
     epochs: int = 50
+    batch_size: int = 256
 
 
 def load_examples_jsonl(path: str | Path) -> list[ExperimentExample]:
@@ -310,6 +311,7 @@ def _fit_model(
             learning_rate=transformer.learning_rate,
             weight_decay=transformer.weight_decay,
             epochs=transformer.epochs,
+            batch_size=transformer.batch_size,
             seed=seed,
         )
         cls = PositionlessSASRec if model_name == "positionless_sasrec" else SASRec

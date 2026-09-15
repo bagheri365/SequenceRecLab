@@ -21,4 +21,5 @@ dropout = 0.2
 learning_rate = 0.001
 weight_decay = 0.0
 epochs = 50
+batch_size = 256
 seed = 20260914

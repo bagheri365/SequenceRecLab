@@ -39,6 +39,8 @@ Neither model silently truncates long histories. History-length selection is par
 
 Both variants use full-catalog cross-entropy over the training item vocabulary. The output logits are tied to the item-embedding matrix, excluding padding row 0. This is compatible with the primary full-catalog evaluation contract.
 
+Training is performed in deterministic shuffled minibatches (default batch size 256). This bounds the full-catalog logit tensor to `batch_size × item_count` instead of materializing logits for every training example at once. Both matched variants use the identical batching rule and seed, so batching does not introduce an architectural difference between them.
+
 ## Reproducibility
 
 Model initialization and training use the configured PyTorch seed. Dropout is disabled during evaluation. Primary experiments should still run the study-level three seeds and report mean/std plus paired bootstrap uncertainty for key metric differences.

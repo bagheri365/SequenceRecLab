@@ -16,6 +16,7 @@ def _config(**overrides):
         dropout=0.0,
         learning_rate=0.02,
         epochs=3,
+        batch_size=2,
         seed=11,
     )
     values.update(overrides)
@@ -94,3 +95,24 @@ def test_transformer_rejects_items_outside_training_vocabulary():
         model.score([1, 99], [1, 2])
     with pytest.raises(ValueError, match="outside item vocabulary"):
         model.score([1, 2], [1, 99])
+
+
+def test_transformer_rejects_nonpositive_batch_size():
+    with pytest.raises(ValueError, match="batch_size"):
+        _config(batch_size=0)
+
+
+def test_fit_never_materializes_more_than_configured_batch_size(monkeypatch):
+    model = PositionlessSASRec(_config(batch_size=2, epochs=2))
+    observed = []
+    original = model._batch
+
+    def recording_batch(examples):
+        observed.append(len(examples))
+        return original(examples)
+
+    monkeypatch.setattr(model, "_batch", recording_batch)
+    model.fit(_examples())
+    assert observed
+    assert max(observed) <= 2
+    assert len(observed) == 4
