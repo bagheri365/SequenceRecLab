@@ -129,22 +129,37 @@ def fixed_evaluation_population(
 
 
 def reconstruct_sequences(examples: Iterable[ExperimentExample]) -> list[tuple[int, ...]]:
-    """Recover one longest observed prefix+target sequence per source identity.
+    """Recover each source sequence exactly once from ordered prefix examples.
 
-    M2 JSONL contains every prefix of a session. Counting every prefix as a fresh
-    sequence would overweight early events in popularity and Markov fitting. The
-    longest example per source recovers the session once for these baselines.
+    Preprocessing emits one example per target in source order, while each stored
+    history may be capped by ``max_history``.  Taking only the longest stored
+    prefix therefore loses early interactions for long sessions.  Instead, group
+    examples by source, order them by their JSONL line number encoded in
+    ``example_id``, seed the sequence from the first history, and append each
+    successive target.
     """
-    longest: dict[str, ExperimentExample] = {}
+    grouped: dict[str, list[tuple[int, ExperimentExample]]] = {}
     for example in examples:
-        source = example.example_id.rsplit(":", 1)[0]
-        current = longest.get(source)
-        if current is None or len(example.history) > len(current.history):
-            longest[source] = example
-    return [
-        example.history + (example.target,)
-        for _, example in sorted(longest.items())
-    ]
+        source, separator, line_number = example.example_id.rpartition(":")
+        if not separator:
+            raise ValueError(f"example_id lacks source/line separator: {example.example_id!r}")
+        try:
+            order = int(line_number)
+        except ValueError as exc:
+            raise ValueError(f"example_id lacks numeric line number: {example.example_id!r}") from exc
+        grouped.setdefault(source, []).append((order, example))
+
+    sequences: list[tuple[int, ...]] = []
+    for source in sorted(grouped):
+        ordered = sorted(grouped[source], key=lambda pair: pair[0])
+        first = ordered[0][1]
+        sequence = list(first.history)
+        for _, example in ordered:
+            if sequence[-len(example.history):] != list(example.history):
+                raise ValueError(f"inconsistent prefix examples for source {source!r}")
+            sequence.append(example.target)
+        sequences.append(tuple(sequence))
+    return sequences
 
 
 def run_grid(

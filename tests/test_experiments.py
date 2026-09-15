@@ -46,6 +46,26 @@ def test_reconstruct_sequences_counts_each_session_once():
     assert reconstruct_sequences(_examples()) == [(1, 2, 3, 4), (2, 3, 4, 1)]
 
 
+def test_reconstruct_sequences_recovers_events_before_capped_history():
+    examples = [
+        ExperimentExample("long:10", (1,), 2),
+        ExperimentExample("long:11", (1, 2), 3),
+        ExperimentExample("long:12", (2, 3), 4),
+        ExperimentExample("long:13", (3, 4), 5),
+    ]
+    assert reconstruct_sequences(examples) == [(1, 2, 3, 4, 5)]
+
+
+def test_reconstruct_sequences_uses_jsonl_order_not_input_order():
+    examples = [
+        ExperimentExample("long:13", (3, 4), 5),
+        ExperimentExample("long:10", (1,), 2),
+        ExperimentExample("long:12", (2, 3), 4),
+        ExperimentExample("long:11", (1, 2), 3),
+    ]
+    assert reconstruct_sequences(examples) == [(1, 2, 3, 4, 5)]
+
+
 def test_load_examples_jsonl_preserves_optional_persistent_identity(tmp_path):
     path = tmp_path / "examples.jsonl"
     path.write_text(
