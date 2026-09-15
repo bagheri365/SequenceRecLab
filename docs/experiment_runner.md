@@ -27,7 +27,8 @@ Every result row records:
 - random seed,
 - history length,
 - evaluated example count,
-- aggregate ranking metrics.
+- aggregate ranking metrics,
+- for Transformer rows, checkpoint-selection provenance: best epoch, epochs trained, selection metric, best validation metric, maximum epoch budget, and patience.
 
 Rows are serialized as deterministic JSONL. Gain rows are only computed between model results with matching dataset, split, seed, history length, and evaluated population size.
 
@@ -50,4 +51,4 @@ The M8 audit showed that history 10 selects a much smaller long-session populati
 
 ## Transformer checkpoint selection
 
-Transformer runs load `validation.jsonl` for checkpoint selection even when `--split test` is requested. The default rule is best full-catalog NDCG@10 with a maximum of 50 epochs and patience 5; the best validation checkpoint is restored before the requested split is evaluated. `--transformer-epochs` sets the maximum epoch budget and `--transformer-patience` sets patience. Validation-run metrics are tuning diagnostics; final claims should come from the untouched test split after the selection protocol is locked.
+Transformer runs load `validation.jsonl` for checkpoint selection even when `--split test` is requested. The default rule is best full-catalog NDCG@10 with a maximum of 50 epochs and patience 5; the best validation checkpoint is restored before the requested split is evaluated. `--transformer-epochs` sets the maximum epoch budget and `--transformer-patience` sets patience. Each Transformer result row records the selected epoch, total epochs trained, selection metric, best validation value, maximum epoch budget, and patience so checkpoint selection is auditable. Validation-run metrics are tuning diagnostics; final claims should come from the untouched test split after the selection protocol is locked.

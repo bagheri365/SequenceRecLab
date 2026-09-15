@@ -45,6 +45,7 @@ class ExperimentResult:
     history_length: int
     example_count: int
     metrics: dict[str, float]
+    training: dict[str, int | float | str | None] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +223,22 @@ def run_grid(
                     item_count=item_count,
                     policy=policy,
                 )
+                training = None
+                if model_name in {"positionless_sasrec", "sasrec"}:
+                    training = {
+                        "best_epoch": int(model.best_epoch_),
+                        "epochs_trained": int(model.epochs_ran_),
+                        "selection_metric": (
+                            "ndcg@10" if model.best_validation_ndcg_at_10_ is not None else "none"
+                        ),
+                        "best_validation_metric": (
+                            None
+                            if model.best_validation_ndcg_at_10_ is None
+                            else float(model.best_validation_ndcg_at_10_)
+                        ),
+                        "max_epochs": int(transformer.epochs),
+                        "patience": int(transformer.early_stopping_patience),
+                    }
                 results.append(
                     ExperimentResult(
                         dataset=dataset,
@@ -231,6 +248,7 @@ def run_grid(
                         history_length=history_length,
                         example_count=len(eval_window),
                         metrics=metrics,
+                        training=training,
                     )
                 )
     return results

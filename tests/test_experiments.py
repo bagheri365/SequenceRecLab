@@ -154,6 +154,7 @@ def test_result_writer_is_stable_jsonl(tmp_path):
     raw = json.loads(path.read_text(encoding="utf-8"))
     assert raw["model"] == "markov"
     assert raw["metrics"]["ndcg@10"] == 0.2
+    assert raw["training"] is None
 
 
 def test_transformer_pair_runs_under_same_runner_when_torch_available():
@@ -180,6 +181,13 @@ def test_transformer_pair_runs_under_same_runner_when_torch_available():
     )
     assert [row.model for row in results] == ["positionless_sasrec", "sasrec"]
     assert all(row.example_count == 2 for row in results)
+    for row in results:
+        assert row.training is not None
+        assert row.training["selection_metric"] == "none"
+        assert row.training["max_epochs"] == 1
+        assert row.training["patience"] == 5
+        assert 1 <= row.training["best_epoch"] <= row.training["epochs_trained"] <= 1
+        assert row.training["best_validation_metric"] is None
 
 
 def test_transformer_runner_accepts_fixed_validation_selection_population():
@@ -211,3 +219,9 @@ def test_transformer_runner_accepts_fixed_validation_selection_population():
     )
     assert len(results) == 2
     assert {row.example_count for row in results} == {2}
+    assert results[0].training is not None
+    assert results[0].training["selection_metric"] == "ndcg@10"
+    assert isinstance(results[0].training["best_validation_metric"], float)
+    assert results[0].training["max_epochs"] == 2
+    assert results[0].training["patience"] == 1
+    assert 1 <= results[0].training["best_epoch"] <= results[0].training["epochs_trained"] <= 2
