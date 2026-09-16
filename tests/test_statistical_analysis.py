@@ -24,6 +24,8 @@ def test_paired_bootstrap_is_deterministic_and_preserves_positive_gain():
     second = paired_example_bootstrap(deltas, history_length=2, bootstrap_samples=500, bootstrap_seed=9)
     assert first == second
     interval = first[0]
+    assert interval.base_bootstrap_seed == 9
+    assert interval.effective_bootstrap_seed == 9
     assert interval.observed_mean_gain == pytest.approx(0.25)
     assert 0 < interval.lower_95 <= interval.observed_mean_gain <= interval.upper_95
 
@@ -34,3 +36,16 @@ def test_paired_bootstrap_rejects_mismatched_example_populations():
             {1: [{"ndcg@10": 0.1}], 2: [{"ndcg@10": 0.2}, {"ndcg@10": 0.3}]},
             history_length=2,
         )
+
+
+def test_paired_bootstrap_records_base_and_effective_seed_separately():
+    deltas = {17: [{"ndcg@10": 0.1}], 29: [{"ndcg@10": 0.2}]}
+    interval = paired_example_bootstrap(
+        deltas,
+        history_length=5,
+        bootstrap_samples=10,
+        bootstrap_seed=20260921,
+        base_bootstrap_seed=20260916,
+    )[0]
+    assert interval.base_bootstrap_seed == 20260916
+    assert interval.effective_bootstrap_seed == 20260921

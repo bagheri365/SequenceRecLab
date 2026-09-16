@@ -28,7 +28,8 @@ class BootstrapInterval:
     n_examples: int
     n_seeds: int
     bootstrap_samples: int
-    bootstrap_seed: int
+    base_bootstrap_seed: int
+    effective_bootstrap_seed: int
     observed_mean_gain: float
     lower_95: float
     upper_95: float
@@ -79,6 +80,7 @@ def paired_example_bootstrap(
     history_length: int,
     bootstrap_samples: int = 10_000,
     bootstrap_seed: int = 20260916,
+    base_bootstrap_seed: int | None = None,
 ) -> list[BootstrapInterval]:
     if bootstrap_samples < 1:
         raise ValueError("bootstrap_samples must be >= 1")
@@ -96,7 +98,10 @@ def paired_example_bootstrap(
             if tuple(sorted(row)) != metric_names:
                 raise ValueError("paired delta metric sets must match")
 
-    rng = random.Random(bootstrap_seed)
+    effective_bootstrap_seed = bootstrap_seed
+    if base_bootstrap_seed is None:
+        base_bootstrap_seed = effective_bootstrap_seed
+    rng = random.Random(effective_bootstrap_seed)
     distributions = {metric: [] for metric in metric_names}
     for _ in range(bootstrap_samples):
         indices = [rng.randrange(n_examples) for _ in range(n_examples)]
@@ -120,7 +125,8 @@ def paired_example_bootstrap(
                 n_examples=n_examples,
                 n_seeds=len(seeds),
                 bootstrap_samples=bootstrap_samples,
-                bootstrap_seed=bootstrap_seed,
+                base_bootstrap_seed=base_bootstrap_seed,
+                effective_bootstrap_seed=effective_bootstrap_seed,
                 observed_mean_gain=observed,
                 lower_95=_percentile(ordered, 0.025),
                 upper_95=_percentile(ordered, 0.975),

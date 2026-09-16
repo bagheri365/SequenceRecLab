@@ -72,6 +72,7 @@ def main() -> None:
                 history_length=history_length,
                 bootstrap_samples=args.bootstrap_samples,
                 bootstrap_seed=args.bootstrap_seed + history_length,
+                base_bootstrap_seed=args.bootstrap_seed,
             )
         )
     write_dataclass_csv(intervals, args.output)
