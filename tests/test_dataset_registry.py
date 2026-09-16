@@ -83,3 +83,10 @@ def test_yoochoose_real_data_history_protocol():
     config = load_registry()["datasets"]["yoochoose"]
     assert config["recommended_history_lengths"] == [2, 3, 5]
     assert config["secondary_history_lengths"] == [10]
+
+
+def test_retailrocket_frozen_replication_history_protocol():
+    config = load_registry()["datasets"]["retailrocket"]
+    assert config["event_unit"] == "view"
+    assert config["identity_scope"] == "persistent_visitor_plus_derived_session"
+    assert config["recommended_history_lengths"] == [2, 3, 5]

@@ -27,16 +27,16 @@ notes = "Real click-event sequences grouped into sessions. Buy events exist for 
 [datasets.retailrocket]
 role = "replication"
 domain = "ecommerce_events"
-event_unit = "event"
+event_unit = "view"
 timestamp_semantics = "event_time"
-identity_scope = "visitor"
+identity_scope = "persistent_visitor_plus_derived_session"
 sequence_semantics = "strong"
 repeat_items_meaningful = true
 seen_item_policy = "allow"
 primary_target_event = "view"
-recommended_history_lengths = [5, 20, 50]
+recommended_history_lengths = [2, 3, 5]
 source_url = "https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset"
-notes = "Timestamped view, addtocart, and transaction events tied to visitor IDs. Primary experiments begin with views; event-type extensions are secondary."
+notes = "Primary task is next-view prediction within visitor-specific sessions split after >30 minutes inactivity. Repeats are retained; addtocart, transaction, item properties, and categories are excluded from the primary sequence. Persistent visitorid is retained separately for BPR."
 
 [datasets.movielens_1m]
 role = "controlled_benchmark"
