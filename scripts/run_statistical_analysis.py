@@ -25,6 +25,7 @@ def main() -> None:
         {
             "dataset": row.dataset,
             "split": row.split,
+            "cohort": row.cohort,
             "seed": row.seed,
             "history_length": row.history_length,
             "gain": row.gain,

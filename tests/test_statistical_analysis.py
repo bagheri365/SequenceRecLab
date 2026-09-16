@@ -49,3 +49,12 @@ def test_paired_bootstrap_records_base_and_effective_seed_separately():
     )[0]
     assert interval.base_bootstrap_seed == 20260916
     assert interval.effective_bootstrap_seed == 20260921
+
+
+def test_seed_summary_keeps_cohorts_separate():
+    rows = [
+        {"split": "test", "cohort": "primary", "model": "history_pool", "seed": 1, "history_length": 2, "metrics": {"ndcg@10": 0.3}},
+        {"split": "test", "cohort": "returning_users", "model": "history_pool", "seed": 1, "history_length": 2, "metrics": {"ndcg@10": 0.5}},
+    ]
+    summaries = summarize_seed_rows(rows)
+    assert [(row.cohort, row.mean) for row in summaries] == [("primary", 0.3), ("returning_users", 0.5)]

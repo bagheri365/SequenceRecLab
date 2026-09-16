@@ -244,3 +244,59 @@ def test_public_per_example_evaluation_aggregates_to_runner_metrics():
     assert len(rows) == 2
     assert set(rows[0]) == {"recall@10", "recall@20", "ndcg@10", "ndcg@20", "mrr@10"}
     assert fmean(row["ndcg@10"] for row in rows) >= 0.0
+
+
+def test_gain_decomposition_tracks_cohort_and_rejects_cross_cohort_rows():
+    primary = _row("history_pool", 0.30)
+    returning = ExperimentResult(
+        dataset="toy",
+        split="test",
+        model="bpr",
+        seed=1,
+        history_length=3,
+        example_count=10,
+        metrics={"ndcg@10": 0.10, "recall@10": 0.20},
+        cohort="returning_users",
+    )
+    with pytest.raises(ValueError, match="crosses cohorts"):
+        compute_gains([primary, returning])
+
+
+def test_gain_decomposition_allows_distinct_matched_cohorts_in_one_result_set():
+    primary_rows = [
+        _row("history_pool", 0.30),
+        _row("positionless_sasrec", 0.35),
+        _row("markov", 0.20),
+        _row("sasrec", 0.40),
+    ]
+    returning_rows = [
+        ExperimentResult(
+            dataset="toy", split="test", model=model, seed=1, history_length=3,
+            example_count=4, metrics={"ndcg@10": value}, cohort="returning_users"
+        )
+        for model, value in [("bpr", 0.10), ("history_pool", 0.25)]
+    ]
+    gains = compute_gains(primary_rows + returning_rows)
+    by_name = {(row.cohort, row.gain): row for row in gains}
+    assert by_name[("returning_users", "recent_history_gain")].metrics["ndcg@10"] == pytest.approx(0.15)
+    assert by_name[("primary", "context_gain")].metrics["ndcg@10"] == pytest.approx(0.05)
+    assert by_name[("primary", "positional_gain")].metrics["ndcg@10"] == pytest.approx(0.05)
+    assert by_name[("primary", "deep_seq_gain")].metrics["ndcg@10"] == pytest.approx(0.20)
+
+
+def test_retailrocket_runner_enforces_declared_cohort_model_contract():
+    train = [
+        ExperimentExample("s1:1", (1,), 2, identity_id=7),
+        ExperimentExample("s1:2", (1, 2), 3, identity_id=7),
+    ]
+    evaluation = [ExperimentExample("e1:1", (1, 2), 3, identity_id=7)]
+    with pytest.raises(ValueError, match="BPR must use cohort='returning_users'"):
+        run_grid(
+            dataset="retailrocket", train_examples=train, evaluation_examples=evaluation,
+            item_count=3, history_lengths=[2], seeds=[1], models=["bpr"], cohort="primary"
+        )
+    with pytest.raises(ValueError, match="reserved for matched BPR/HistoryPool"):
+        run_grid(
+            dataset="retailrocket", train_examples=train, evaluation_examples=evaluation,
+            item_count=3, history_lengths=[2], seeds=[1], models=["markov"], cohort="returning_users"
+        )

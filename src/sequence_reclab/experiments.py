@@ -46,6 +46,7 @@ class ExperimentResult:
     example_count: int
     metrics: dict[str, float]
     training: dict[str, int | float | str | None] | None = None
+    cohort: str = "primary"
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +57,7 @@ class GainResult:
     history_length: int
     gain: str
     metrics: dict[str, float]
+    cohort: str = "primary"
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,12 +181,15 @@ def run_grid(
     policy: EvaluationPolicy = YOOCHOOSE_POLICY,
     transformer: TransformerRunConfig = TransformerRunConfig(),
     transformer_validation_examples: Sequence[ExperimentExample] | None = None,
+    cohort: str = "primary",
 ) -> list[ExperimentResult]:
     lengths = _validate_history_lengths(history_lengths)
     normalized_models = _validate_models(models)
     normalized_seeds = _validate_seeds(seeds)
     if item_count < 1:
         raise ValueError("item_count must be >= 1")
+    cohort = _validate_cohort(cohort)
+    _validate_dataset_cohort_models(dataset, cohort, normalized_models)
 
     fixed_eval = fixed_evaluation_population(evaluation_examples, lengths)
     fixed_transformer_validation = (
@@ -249,15 +254,16 @@ def run_grid(
                         example_count=len(eval_window),
                         metrics=metrics,
                         training=training,
+                        cohort=cohort,
                     )
                 )
     return results
 
 
 def compute_gains(results: Iterable[ExperimentResult]) -> list[GainResult]:
-    grouped: dict[tuple[str, str, int, int], dict[str, ExperimentResult]] = {}
+    grouped: dict[tuple[str, str, str, int, int], dict[str, ExperimentResult]] = {}
     for result in results:
-        key = (result.dataset, result.split, result.seed, result.history_length)
+        key = (result.dataset, result.split, result.cohort, result.seed, result.history_length)
         models = grouped.setdefault(key, {})
         if result.model in models:
             raise ValueError(f"duplicate result row for {key} model={result.model}")
@@ -269,6 +275,24 @@ def compute_gains(results: Iterable[ExperimentResult]) -> list[GainResult]:
         ("positional_gain", "sasrec", "positionless_sasrec"),
         ("deep_seq_gain", "sasrec", "markov"),
     )
+    # If both sides of a declared gain are present for the same experimental
+    # cell but never share a cohort, fail loudly instead of silently omitting a
+    # scientifically invalid subtraction.
+    cells: dict[tuple[str, str, int, int], dict[str, set[str]]] = {}
+    for (dataset, split, cohort, seed, history_length), models in grouped.items():
+        cell = cells.setdefault((dataset, split, seed, history_length), {})
+        for model_name in models:
+            cell.setdefault(model_name, set()).add(cohort)
+    for cell_key, model_cohorts in cells.items():
+        for gain_name, high_name, low_name in definitions:
+            if high_name not in model_cohorts or low_name not in model_cohorts:
+                continue
+            if model_cohorts[high_name].isdisjoint(model_cohorts[low_name]):
+                raise ValueError(
+                    f"gain comparison crosses cohorts for {cell_key}: "
+                    f"{gain_name} requires {high_name} and {low_name} on the same cohort"
+                )
+
     gains: list[GainResult] = []
     for key, models in sorted(grouped.items()):
         for gain_name, high_name, low_name in definitions:
@@ -283,8 +307,9 @@ def compute_gains(results: Iterable[ExperimentResult]) -> list[GainResult]:
                 GainResult(
                     dataset=key[0],
                     split=key[1],
-                    seed=key[2],
-                    history_length=key[3],
+                    cohort=key[2],
+                    seed=key[3],
+                    history_length=key[4],
                     gain=gain_name,
                     metrics={name: high.metrics[name] - low.metrics[name] for name in sorted(metric_names)},
                 )
@@ -400,6 +425,28 @@ def _evaluate_model(
     )
     metric_names = tuple(per_example[0])
     return {name: fmean(row[name] for row in per_example) for name in metric_names}
+
+
+def _validate_cohort(cohort: str) -> str:
+    if cohort not in {"primary", "returning_users"}:
+        raise ValueError("cohort must be 'primary' or 'returning_users'")
+    return cohort
+
+
+def _validate_dataset_cohort_models(dataset: str, cohort: str, models: Sequence[str]) -> None:
+    if dataset != "retailrocket":
+        if cohort != "primary":
+            raise ValueError("non-Retailrocket experiments only support cohort='primary'")
+        return
+    if cohort == "primary" and "bpr" in models:
+        raise ValueError("Retailrocket BPR must use cohort='returning_users'")
+    if cohort == "returning_users":
+        disallowed = sorted(set(models) - {"bpr", "history_pool"})
+        if disallowed:
+            raise ValueError(
+                "Retailrocket returning_users cohort is reserved for matched BPR/HistoryPool "
+                f"RecentHistoryGain; disallowed models: {', '.join(disallowed)}"
+            )
 
 
 def _validate_history_lengths(history_lengths: Sequence[int]) -> tuple[int, ...]:

@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--dataset", default="yoochoose")
     parser.add_argument("--split", choices=("validation", "test"), default="test")
+    parser.add_argument("--cohort", choices=("primary", "returning_users"), default="primary")
     parser.add_argument("--history-lengths", type=int, nargs="+", default=[2, 3, 5])
     parser.add_argument("--seeds", type=int, nargs="+", default=[20260914, 20260915, 20260916])
     parser.add_argument("--models", nargs="+", default=list(PRIMARY_YOOCHOOSE_MODELS))
@@ -33,8 +34,9 @@ def main() -> None:
     args = parse_args()
     mapping = json.loads((args.processed_dir / "item_mapping.json").read_text(encoding="utf-8"))
     train = load_examples_jsonl(args.processed_dir / "train.jsonl")
-    evaluation = load_examples_jsonl(args.processed_dir / f"{args.split}.jsonl")
-    validation = load_examples_jsonl(args.processed_dir / "validation.jsonl")
+    suffix = "" if args.cohort == "primary" else "_returning_users"
+    evaluation = load_examples_jsonl(args.processed_dir / f"{args.split}{suffix}.jsonl")
+    validation = load_examples_jsonl(args.processed_dir / f"validation{suffix}.jsonl")
 
     rows = run_grid(
         dataset=args.dataset,
@@ -50,6 +52,7 @@ def main() -> None:
             early_stopping_patience=args.transformer_patience,
         ),
         transformer_validation_examples=validation,
+        cohort=args.cohort,
     )
     gains = compute_gains(rows)
     write_results_jsonl(rows, args.output_dir / "results.jsonl")

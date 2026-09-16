@@ -47,3 +47,44 @@ python scripts/preprocess_retailrocket.py \
 ```
 
 Generated data and profiles are research outputs and should not be committed.
+
+## Runner cohort contract
+
+Experiment result rows carry an explicit `cohort` field. For Retailrocket, the
+runner accepts the sequential models on `primary`; BPR is forbidden there.
+`returning_users` is reserved for the matched BPR/HistoryPool comparison used by
+`RecentHistoryGain`. The experiment CLI selects `validation.jsonl`/`test.jsonl`
+for `--cohort primary` and the corresponding `*_returning_users.jsonl` files for
+`--cohort returning_users`.
+
+Gain matching includes cohort identity in addition to dataset, split, seed, and
+history length. If both sides of a declared gain are supplied only on different
+cohorts, analysis fails rather than silently subtracting or merging them.
+
+Example primary run:
+
+```bash
+python scripts/run_experiment.py \
+  --processed-dir data/processed/retailrocket \
+  --output-dir results/retailrocket/primary_validation \
+  --dataset retailrocket \
+  --split validation \
+  --cohort primary \
+  --history-lengths 2 3 5 \
+  --seeds 17 29 43 \
+  --models markov history_pool positionless_sasrec sasrec
+```
+
+Returning-user BPR comparison:
+
+```bash
+python scripts/run_experiment.py \
+  --processed-dir data/processed/retailrocket \
+  --output-dir results/retailrocket/returning_validation \
+  --dataset retailrocket \
+  --split validation \
+  --cohort returning_users \
+  --history-lengths 2 3 5 \
+  --seeds 17 29 43 \
+  --models bpr history_pool
+```

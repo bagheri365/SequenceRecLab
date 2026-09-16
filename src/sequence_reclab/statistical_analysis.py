@@ -12,6 +12,7 @@ from typing import Iterable, Mapping, Sequence
 @dataclass(frozen=True, slots=True)
 class SummaryRow:
     split: str
+    cohort: str
     kind: str
     name: str
     history_length: int
@@ -47,21 +48,22 @@ def load_jsonl(path: str | Path) -> list[dict]:
 
 
 def summarize_seed_rows(rows: Iterable[Mapping[str, object]]) -> list[SummaryRow]:
-    grouped: dict[tuple[str, str, str, int, str], list[float]] = {}
+    grouped: dict[tuple[str, str, str, str, int, str], list[float]] = {}
     for row in rows:
         kind, name = ("gain", str(row["gain"])) if "gain" in row else ("model", str(row["model"]))
         metrics = row["metrics"]
         if not isinstance(metrics, Mapping):
             raise ValueError("metrics must be a mapping")
         for metric, value in metrics.items():
-            key = (str(row["split"]), kind, name, int(row["history_length"]), str(metric))
+            key = (str(row["split"]), str(row.get("cohort", "primary")), kind, name, int(row["history_length"]), str(metric))
             grouped.setdefault(key, []).append(float(value))
 
     output: list[SummaryRow] = []
-    for (split, kind, name, history_length, metric), values in sorted(grouped.items()):
+    for (split, cohort, kind, name, history_length, metric), values in sorted(grouped.items()):
         output.append(
             SummaryRow(
                 split=split,
+                cohort=cohort,
                 kind=kind,
                 name=name,
                 history_length=history_length,
