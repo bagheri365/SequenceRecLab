@@ -356,7 +356,7 @@ def _fit_model(
     raise AssertionError(f"unhandled model {model_name}")
 
 
-def _evaluate_model(
+def evaluate_model_per_example(
     model_name: str,
     model: object,
     examples: Sequence[ExperimentExample],
@@ -384,6 +384,20 @@ def _evaluate_model(
         ranking = rank_items(scores, candidates)
         per_example.append(evaluate_ranking(ranking, example.target))
 
+    return per_example
+
+
+def _evaluate_model(
+    model_name: str,
+    model: object,
+    examples: Sequence[ExperimentExample],
+    *,
+    item_count: int,
+    policy: EvaluationPolicy,
+) -> dict[str, float]:
+    per_example = evaluate_model_per_example(
+        model_name, model, examples, item_count=item_count, policy=policy
+    )
     metric_names = tuple(per_example[0])
     return {name: fmean(row[name] for row in per_example) for name in metric_names}
 

@@ -225,3 +225,22 @@ def test_transformer_runner_accepts_fixed_validation_selection_population():
     assert results[0].training["max_epochs"] == 2
     assert results[0].training["patience"] == 1
     assert 1 <= results[0].training["best_epoch"] <= results[0].training["epochs_trained"] <= 2
+
+
+def test_public_per_example_evaluation_aggregates_to_runner_metrics():
+    from sequence_reclab.evaluation import YOOCHOOSE_POLICY
+    from sequence_reclab.experiments import evaluate_model_per_example
+    from sequence_reclab.models import FirstOrderMarkov
+    from statistics import fmean
+
+    examples = [
+        ExperimentExample("e1:1", (1, 2), 3),
+        ExperimentExample("e2:2", (2, 3), 4),
+    ]
+    model = FirstOrderMarkov().fit(reconstruct_sequences(_examples()))
+    rows = evaluate_model_per_example(
+        "markov", model, examples, item_count=4, policy=YOOCHOOSE_POLICY
+    )
+    assert len(rows) == 2
+    assert set(rows[0]) == {"recall@10", "recall@20", "ndcg@10", "ndcg@20", "mrr@10"}
+    assert fmean(row["ndcg@10"] for row in rows) >= 0.0
