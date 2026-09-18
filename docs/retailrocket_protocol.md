@@ -88,3 +88,7 @@ python scripts/run_experiment.py \
   --seeds 17 29 43 \
   --models bpr history_pool
 ```
+
+## Frozen uncertainty analysis
+
+After the validation configuration and final test runs are frozen, uncertainty for the Retailrocket gain decomposition is estimated by paired session-cluster bootstrap. Whole 30-minute view sessions are resampled with replacement, keeping all eligible next-view examples from a sampled session together. Primary-cohort gains (`ContextGain`, `PositionalGain`, `DeepSeqGain`) and returning-user `RecentHistoryGain` are bootstrapped separately and must not be combined across cohorts. Training seeds remain the three fixed seeds 17, 29, and 43 rather than being resampled.
