@@ -27,3 +27,7 @@ python scripts/run_retailrocket_cluster_bootstrap.py \
   --bootstrap-samples 10000 \
   --bootstrap-seed 20260918
 ```
+
+## Cross-dataset reporting
+
+Milestone 19 keeps cross-dataset synthesis downstream of all frozen modeling and uncertainty estimation. The reporting script labels YOOCHOOSE positional intervals as paired example-level bootstrap intervals and Retailrocket intervals as paired session-cluster bootstrap intervals; it does not imply that the two sampling units are equivalent. Retailrocket RecentHistoryGain remains a returning-user estimand and is never combined additively with primary-cohort gains. See `docs/cross_dataset_synthesis.md`.
