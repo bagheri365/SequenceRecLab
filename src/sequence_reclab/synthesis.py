@@ -147,3 +147,92 @@ def write_synthesis_markdown(rows: Sequence[PublicationGainRow], path: str | Pat
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_manuscript_methods_results(rows: Sequence[PublicationGainRow], path: str | Path) -> None:
+    """Write a manuscript-ready Methods/Results/Limitations package from frozen rows."""
+    validate_estimand_boundaries(rows)
+    positional = [
+        r for r in rows
+        if r.cohort == "primary" and r.gain == "positional_gain" and r.metric == "ndcg@10"
+    ]
+    by_dataset = {
+        dataset: sorted((r for r in positional if r.dataset == dataset), key=lambda r: r.history_length)
+        for dataset in ("yoochoose", "retailrocket")
+    }
+    if any([r.history_length for r in values] != [2, 3, 5] for values in by_dataset.values()):
+        raise ValueError("manuscript package requires h2/h3/h5 positional NDCG@10 for both datasets")
+    if any(r.lower_95 is None or r.upper_95 is None for r in positional):
+        raise ValueError("manuscript positional table requires frozen 95% intervals")
+
+    rr_recent = sorted(
+        (r for r in rows if r.dataset == "retailrocket" and r.cohort == "returning_users"
+         and r.gain == "recent_history_gain" and r.metric == "ndcg@10"),
+        key=lambda r: r.history_length,
+    )
+    if [r.history_length for r in rr_recent] != [2, 3, 5]:
+        raise ValueError("manuscript package requires Retailrocket returning-user RecentHistoryGain h2/h3/h5")
+
+    lines = [
+        "# Manuscript-ready methods and results",
+        "",
+        "This reporting layer is downstream of the frozen experiments. It does not refit models, select checkpoints, change preprocessing, or use test results for tuning.",
+        "",
+        "## Methods",
+        "",
+        "### Tasks and evaluation",
+        "",
+        "We study next-item prediction on two implicit-feedback datasets. YOOCHOOSE uses session click sequences from the frozen 1/64-style subset; Retailrocket uses view events grouped into sessions by inactivity strictly greater than 30 minutes. Repeated items remain valid targets and previously seen items are not masked at evaluation. Both datasets use train-only item vocabularies, temporal train/validation/test splits, full-catalog evaluation, and primary history lengths 2, 3, and 5. Reported metrics are Recall@10/20, NDCG@10/20, and MRR@10.",
+        "",
+        "### Matched positional ablation",
+        "",
+        "PositionalGain is defined as SASRec - PositionlessSASRec. The two SASRec-style next-item Transformers share item embeddings, dimensionality, attention heads, depth, feed-forward width, objective, examples, candidate set, tied output parameterization, and masked-mean readout. Both use full self-attention over the observed history prefix; the positionless control fixes its same-shaped positional table to zero, whereas SASRec learns positional embeddings. This isolates the predictive value associated with explicit positional information within the matched architecture; it is not a claim of universal causal attribution.",
+        "",
+        "### Model selection and uncertainty",
+        "",
+        "Transformer checkpoints are selected only by validation full-catalog NDCG@10 with a maximum of 50 epochs, patience 5, and min_delta 0, after which the best validation checkpoint is restored for final test evaluation. Results use the three predeclared training seeds 17, 29, and 43. YOOCHOOSE PositionalGain intervals use a paired example-level percentile bootstrap. Retailrocket gain intervals use a paired session-cluster percentile bootstrap that resamples whole derived sessions. In both analyses the three training seeds are fixed rather than resampled, so these intervals quantify evaluation-population uncertainty conditional on those training runs, not population-of-training-seeds uncertainty.",
+        "",
+        "### Gain estimands",
+        "",
+        "The primary decomposition uses ContextGain = PositionlessSASRec - HistoryPool, PositionalGain = SASRec - PositionlessSASRec, and DeepSeqGain = SASRec - Markov. Retailrocket additionally estimates RecentHistoryGain = HistoryPool - BPR only on a separate returning-user cohort because BPR requires persistent users. YOOCHOOSE has no RecentHistoryGain estimand because its session IDs are not persistent user identities. Gains from different cohorts are not combined.",
+        "",
+        "## Results",
+        "",
+        "### Cross-dataset PositionalGain replication",
+        "",
+        "| Dataset | History | NDCG@10 gain | Seed SD | 95% interval | Uncertainty |",
+        "|---|---:|---:|---:|---:|---|",
+    ]
+    labels = {
+        "paired_example_bootstrap": "paired example bootstrap",
+        "paired_session_cluster_bootstrap": "paired session-cluster bootstrap",
+    }
+    for dataset in ("yoochoose", "retailrocket"):
+        for r in by_dataset[dataset]:
+            lines.append(
+                f"| {dataset} | {r.history_length} | {r.mean:+.4f} | {r.sample_sd:.4f} | "
+                f"[{r.lower_95:+.4f}, {r.upper_95:+.4f}] | {labels.get(r.uncertainty_method, r.uncertainty_method)} |"
+            )
+    lines += [
+        "",
+        "Across both datasets, PositionalGain on NDCG@10 is positive at histories 2, 3, and 5 and increases with the available history. The magnitude is larger on YOOCHOOSE, while Retailrocket reproduces the same history-dependent pattern under a different dataset and sessionization protocol. Because the bootstrap sampling units differ, interval widths should not be compared as though they arose from the same uncertainty model.",
+        "",
+        "### Retailrocket returning-user RecentHistoryGain",
+        "",
+        "| History | NDCG@10 gain | Seed SD | 95% session-cluster interval |",
+        "|---:|---:|---:|---:|",
+    ]
+    for r in rr_recent:
+        lines.append(f"| {r.history_length} | {r.mean:+.4f} | {r.sample_sd:.4f} | [{r.lower_95:+.4f}, {r.upper_95:+.4f}] |")
+    lines += [
+        "",
+        "RecentHistoryGain is reported separately because it is estimated on Retailrocket returning users rather than the primary sequential cohort. It is therefore not an additive component of the primary-cohort decomposition.",
+        "",
+        "## Limitations",
+        "",
+        "The study uses only three fixed training seeds, so seed means and sample standard deviations are descriptive and the bootstrap intervals do not represent uncertainty over arbitrary retraining runs. YOOCHOOSE uses example-level resampling, which does not preserve within-session dependence, whereas Retailrocket uses session-cluster resampling; the two interval procedures are intentionally labeled separately. RecentHistoryGain is available only for Retailrocket returning users and cannot be generalized automatically to its primary cohort or to YOOCHOOSE. Finally, the gain decomposition is a matched predictive ablation: it supports statements about incremental predictive value under these frozen architectures and protocols, not universal mechanistic or causal claims about sequence order.",
+        "",
+    ]
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("\n".join(lines), encoding="utf-8")

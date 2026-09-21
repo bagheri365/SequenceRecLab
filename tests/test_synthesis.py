@@ -7,6 +7,7 @@ from sequence_reclab.synthesis import (
     build_publication_gain_rows,
     validate_estimand_boundaries,
     write_positional_replication_csv,
+    write_manuscript_methods_results,
 )
 
 
@@ -47,3 +48,34 @@ def test_positional_replication_requires_both_datasets_and_preserves_methods(tmp
         written = list(csv.DictReader(handle))
     assert len(written) == 6
     assert {row["uncertainty_method"] for row in written} == {"paired_example_bootstrap", "paired_session_cluster_bootstrap"}
+
+
+def test_manuscript_package_preserves_uncertainty_and_cohort_boundaries(tmp_path):
+    rows = []
+    for dataset, method, means in [
+        ("yoochoose", "paired_example_bootstrap", (0.02, 0.04, 0.07)),
+        ("retailrocket", "paired_session_cluster_bootstrap", (0.006, 0.011, 0.026)),
+    ]:
+        for history, mean in zip((2, 3, 5), means):
+            rows.append(PublicationGainRow(dataset, "primary", "positional_gain", history, "ndcg@10", mean, 0.002, 3, method, mean - 0.001, mean + 0.001))
+    for history in (2, 3, 5):
+        rows.append(PublicationGainRow("retailrocket", "returning_users", "recent_history_gain", history, "ndcg@10", 0.17, 0.001, 3, "paired_session_cluster_bootstrap", 0.12, 0.22))
+    output = tmp_path / "manuscript.md"
+    write_manuscript_methods_results(rows, output)
+    text = output.read_text()
+    assert "paired example bootstrap" in text
+    assert "paired session-cluster bootstrap" in text
+    assert "returning-user cohort" in text
+    assert "not an additive component" in text
+    assert "not universal mechanistic or causal claims" in text
+
+
+def test_manuscript_package_requires_intervals(tmp_path):
+    rows = []
+    for dataset in ("yoochoose", "retailrocket"):
+        for history in (2, 3, 5):
+            rows.append(PublicationGainRow(dataset, "primary", "positional_gain", history, "ndcg@10", 0.01, 0.001, 3, "none", None, None))
+    for history in (2, 3, 5):
+        rows.append(PublicationGainRow("retailrocket", "returning_users", "recent_history_gain", history, "ndcg@10", 0.17, 0.001, 3, "none", None, None))
+    with pytest.raises(ValueError, match="requires frozen 95% intervals"):
+        write_manuscript_methods_results(rows, tmp_path / "manuscript.md")

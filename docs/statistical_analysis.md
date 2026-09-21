@@ -25,7 +25,7 @@ python scripts/run_retailrocket_cluster_bootstrap.py \
   --history-lengths 2 3 5 \
   --seeds 17 29 43 \
   --bootstrap-samples 10000 \
-  --bootstrap-seed 20260918
+  --bootstrap-seed 20260916
 ```
 
 ## Cross-dataset reporting

@@ -11,6 +11,7 @@ from sequence_reclab.synthesis import (
     write_positional_replication_csv,
     write_publication_gain_csv,
     write_synthesis_markdown,
+    write_manuscript_methods_results,
 )
 
 
@@ -43,6 +44,7 @@ def main() -> None:
     write_publication_gain_csv(rows, args.output_dir / "gain_table.csv")
     write_positional_replication_csv(rows, args.output_dir / "positional_ndcg10.csv")
     write_synthesis_markdown(rows, args.output_dir / "synthesis.md")
+    write_manuscript_methods_results(rows, args.output_dir / "manuscript_methods_results.md")
     print(f"wrote {len(rows)} gain rows and cross-dataset synthesis to {args.output_dir}")
 
 
